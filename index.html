@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Journeyman — кодекс мастера</title>
+<meta name="description" content="Хранилище материалов для мастеров настольных ролевых игр: пространства, связанные объекты, тексты, изображения и музыка.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 30 10v12L16 30 2 22V10z' fill='%23161009' stroke='%23c9a227' stroke-width='2'/%3E%3Cpath d='M16 9l6 3.5v7L16 23l-6-3.5v-7z' fill='%23c9a227'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<div id="app" aria-live="polite"></div>
+
+<!-- ─── Модальное окно ─────────────────────────────────────────── -->
+<div id="modal-root" class="modal-root" hidden></div>
+
+<!-- ─── Всплывающие уведомления ────────────────────────────────── -->
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+<!-- ─── Скрытые поля загрузки ──────────────────────────────────── -->
+<input type="file" id="file-input" hidden>
+
+<script src="js/db.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
