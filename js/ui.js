@@ -47,6 +47,10 @@ const UI = (() => {
     pencil:  '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="m14 6 4 4"/>',
     download:'<path d="M12 4v11"/><path d="m8 11 4 4 4-4"/><path d="M5 19h14"/>',
     play:    '<path d="M8 5v14l11-7z"/>',
+    table:   '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 10h18M3 14.5h18M9 5v14M15 5v14"/>',
+    calc:    '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>',
+    list:    '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
+    panelL:  '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M10 4v16"/>',
   };
 
   function icon(name, size = 20) {
@@ -156,6 +160,69 @@ const UI = (() => {
     });
   }
 
+  /** Список кнопок-вариантов. Возвращает key выбранного или null. */
+  function chooseDialog({ title, description, options }) {
+    return openModal((box, done) => {
+      box.append(
+        el('h2', { text: title }),
+        description ? el('p', { text: description }) : null,
+        el('div', { class: 'choice-list' }, options.map((o) =>
+          el('button', { class: 'btn choice', onclick: () => done(o.key) }, [
+            o.icon ? icon(o.icon, 18) : null,
+            el('span', { text: o.label }),
+          ]))),
+        el('div', { class: 'modal-actions' }, [
+          el('button', { class: 'btn btn-ghost', onclick: () => done(null), text: 'Отмена' }),
+        ]),
+      );
+    });
+  }
+
+  /* --- очистка вставляемого HTML ----------------------------------------- */
+
+  const TAGS = new Set(['P', 'BR', 'DIV', 'SPAN', 'B', 'STRONG', 'I', 'EM', 'U', 'S',
+    'H1', 'H2', 'H3', 'H4', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'CODE', 'PRE', 'HR',
+    'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'IMG', 'A']);
+
+  function attrOk(tag, name, value) {
+    const n = name.toLowerCase();
+    if (n === 'colspan' || n === 'rowspan') return true;
+    if (tag === 'IMG') return n === 'data-asset' || n === 'alt';
+    if (tag === 'A') return n === 'href' && /^(https?:|mailto:)/i.test(value);
+    return false;
+  }
+
+  /** Оставляет только безопасную разметку: без скриптов, стилей и обработчиков. */
+  function sanitizeHtml(html) {
+    // DOMParser даёт инертный документ — картинки и скрипты в нём не срабатывают
+    const src = new DOMParser().parseFromString(html, 'text/html').body;
+    const out = document.createElement('div');
+    const copy = (from, to) => {
+      for (const n of from.childNodes) {
+        if (n.nodeType === 3) { to.append(document.createTextNode(n.nodeValue)); continue; }
+        if (n.nodeType !== 1) continue;
+        if (n.tagName === 'SCRIPT' || n.tagName === 'STYLE') continue;
+        if (!TAGS.has(n.tagName)) { copy(n, to); continue; }   // тег выбрасываем, содержимое оставляем
+        const node = document.createElement(n.tagName);
+        for (const a of n.attributes) {
+          if (attrOk(n.tagName, a.name, a.value)) node.setAttribute(a.name, a.value);
+        }
+        copy(n, node);
+        to.append(node);
+      }
+    };
+    copy(src, out);
+    return out.innerHTML;
+  }
+
+  /** Простой текст → абзацы. Используется при переносе старых записей. */
+  function textToHtml(text) {
+    const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    return (text || '').split(/\n{2,}/)
+      .map((block) => '<p>' + esc(block).replace(/\n/g, '<br>') + '</p>')
+      .join('');
+  }
+
   /* --- просмотр изображения / видео -------------------------------------- */
 
   function lightbox(url, mime, caption) {
@@ -232,5 +299,7 @@ const UI = (() => {
     return wrapped;
   };
 
-  return { el, icon, toast, openModal, formDialog, confirmDialog, closeModal, lightbox, pickFiles, blobUrl, releaseUrls, fmtDate, fmtSize, plural, debounce };
+  return { el, icon, toast, openModal, formDialog, confirmDialog, chooseDialog, closeModal,
+           lightbox, pickFiles, blobUrl, releaseUrls, sanitizeHtml, textToHtml,
+           fmtDate, fmtSize, plural, debounce };
 })();

@@ -6,8 +6,9 @@
    ========================================================================== */
 
 (() => {
-  const { el, icon, toast, formDialog, confirmDialog, lightbox, pickFiles,
-          blobUrl, releaseUrls, fmtDate, fmtSize, plural, debounce } = UI;
+  const { el, icon, toast, formDialog, confirmDialog, chooseDialog, lightbox, pickFiles,
+          blobUrl, releaseUrls, sanitizeHtml, textToHtml,
+          fmtDate, fmtSize, plural, debounce } = UI;
 
   const app = document.getElementById('app');
 
@@ -238,7 +239,7 @@
           el('button', { class: 'btn btn-ghost btn-icon', title: 'В меню', onclick: () => go('#/') }, [icon('home')]),
         ],
       }),
-      el('div', { class: 'space-screen', style: { height: 'calc(100dvh - 64px)' } }, [viewport]),
+      el('div', { class: 'space-screen' }, [viewport]),
     );
 
     /* --- отрисовка --------------------------------------------------- */
@@ -663,22 +664,60 @@
     const links = await DB.listLinks(node.spaceId);
     const siblings = await DB.listNodes(node.spaceId);
 
-    /* --- основной документ --------------------------------------------- */
+    /* --- основной документ: текст с таблицами и картинками --------------- */
 
     const title = el('input', { class: 'doc-title', value: node.name, 'aria-label': 'Наименование объекта' });
     const meta = el('div', { class: 'doc-meta' });
-    const text = el('textarea', {
-      class: 'doc-text', 'aria-label': 'Текст объекта',
-      placeholder: 'Здесь живёт всё, что нужно помнить: описание места, реплики NPC, тайны, зацепки, статблоки…',
-    });
-    text.value = node.text || '';
-
     const saveStatus = el('span', { class: 'topbar-sub', text: '' });
 
-    function autosize() {
-      text.style.height = 'auto';
-      text.style.height = Math.max(text.scrollHeight, window.innerHeight * 0.5) + 'px';
+    const editor = el('div', {
+      class: 'doc-text', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true',
+      'aria-label': 'Текст объекта',
+      'data-placeholder': 'Здесь живёт всё, что нужно помнить: описание места, реплики NPC, тайны, зацепки, статблоки…',
+    });
+    // старые записи хранились простым текстом — переносим их в разметку на лету
+    editor.innerHTML = sanitizeHtml(node.html != null ? node.html : textToHtml(node.text));
+    await hydrateImages(editor);
+
+    /** Подставляет картинкам ссылки на файлы из хранилища. */
+    async function hydrateImages(root) {
+      for (const img of root.querySelectorAll('img[data-asset]')) {
+        const a = await DB.getAsset(img.dataset.asset);
+        if (a) img.src = blobUrl(a.blob);
+        else img.replaceWith(el('span', { class: 'img-missing', text: '⟨изображение удалено⟩' }));
+      }
     }
+
+    /** Разметка для хранения: ссылки на файлы живут только в памяти. */
+    function serialize() {
+      const clone = editor.cloneNode(true);
+      clone.querySelectorAll('img[data-asset]').forEach((i) => i.removeAttribute('src'));
+      return clone.innerHTML;
+    }
+
+    function updateEmpty() {
+      const blank = !editor.textContent.trim() && !editor.querySelector('img, table');
+      editor.classList.toggle('is-empty', blank);
+    }
+
+    const saveDoc = debounce(async () => {
+      const html = serialize();
+      const plain = editor.innerText.replace(/ /g, ' ').trim();
+      node.html = html;
+      node.text = plain;
+      await DB.updateNode(node.id, { html, text: plain });
+      await DB.touchSpace(node.spaceId);
+      refreshMeta();
+      saveStatus.textContent = 'сохранено';
+      setTimeout(() => { if (saveStatus.textContent === 'сохранено') saveStatus.textContent = ''; }, 1600);
+    }, 500);
+
+    function onEdit() {
+      updateEmpty();
+      saveStatus.textContent = 'сохраняю…';
+      saveDoc();
+    }
+    editor.addEventListener('input', onEdit);
 
     const save = debounce(async (patch) => {
       await DB.updateNode(node.id, patch);
@@ -692,21 +731,216 @@
       saveStatus.textContent = 'сохраняю…';
       save({ name: title.value.trim() || 'Без названия' });
     });
-    text.addEventListener('input', () => {
-      node.text = text.value;
-      saveStatus.textContent = 'сохраняю…';
-      autosize();
-      save({ text: text.value });
+
+    /* --- запоминание места ввода (кнопки не должны его терять) ----------- */
+
+    let savedRange = null;
+    const rememberRange = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+        savedRange = sel.getRangeAt(0).cloneRange();
+      }
+    };
+    document.addEventListener('selectionchange', rememberRange);
+
+    function focusEditor() {
+      editor.focus();
+      if (!savedRange) return;
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    }
+    // execCommand иногда оставляет <p></p> нулевой высоты — в такой абзац
+    // невозможно поставить курсор, поэтому даём ему перенос строки
+    const fixEmptyParagraphs = () => {
+      editor.querySelectorAll('p:empty').forEach((p) => p.append(document.createElement('br')));
+    };
+    const exec = (cmd, val) => {
+      focusEditor();
+      document.execCommand(cmd, false, val);
+      fixEmptyParagraphs();
+      onEdit();
+    };
+    const insertHtml = (html) => {
+      focusEditor();
+      document.execCommand('insertHTML', false, html);
+      fixEmptyParagraphs();
+      onEdit();
+    };
+
+    // вставка из буфера: чистим разметку, чтобы не тащить чужие стили и скрипты
+    editor.addEventListener('paste', (e) => {
+      const html = e.clipboardData.getData('text/html');
+      const text = e.clipboardData.getData('text/plain');
+      e.preventDefault();
+      if (html) document.execCommand('insertHTML', false, sanitizeHtml(html));
+      else document.execCommand('insertText', false, text);
+      onEdit();
     });
+
+    /* --- таблицы --------------------------------------------------------- */
+
+    function currentCell() {
+      const anchor = savedRange ? savedRange.startContainer : null;
+      if (!anchor || !editor.contains(anchor)) return null;
+      const e = anchor.nodeType === 1 ? anchor : anchor.parentElement;
+      return e ? e.closest('td, th') : null;
+    }
+
+    function tableHtml(rows, cols) {
+      let h = '<table><thead><tr>';
+      for (let c = 0; c < cols; c++) h += `<th>Столбец ${c + 1}</th>`;
+      h += '</tr></thead><tbody>';
+      for (let r = 0; r < rows; r++) {
+        h += '<tr>' + '<td><br></td>'.repeat(cols) + '</tr>';
+      }
+      return h + '</tbody></table><p><br></p>';
+    }
+
+    async function newTable() {
+      const v = await formDialog({
+        title: 'Новая таблица',
+        description: 'Шапку и ячейки можно править прямо в тексте.',
+        fields: [
+          { key: 'rows', label: 'Строк (без шапки)', value: '3' },
+          { key: 'cols', label: 'Столбцов', value: '3' },
+        ],
+        submit: 'Вставить',
+      });
+      if (!v) return;
+      const rows = clamp(parseInt(v.rows, 10) || 3, 1, 20);
+      const cols = clamp(parseInt(v.cols, 10) || 3, 1, 10);
+      insertHtml(tableHtml(rows, cols));
+    }
+
+    function addRow(cell) {
+      const tr = cell.parentElement;
+      const row = document.createElement('tr');
+      row.innerHTML = '<td><br></td>'.repeat(tr.children.length);
+      tr.after(row);
+    }
+
+    function addCol(cell) {
+      const idx = [...cell.parentElement.children].indexOf(cell);
+      for (const tr of cell.closest('table').rows) {
+        const head = tr.parentElement.tagName === 'THEAD';
+        const c = document.createElement(head ? 'th' : 'td');
+        c.innerHTML = head ? 'Столбец' : '<br>';
+        if (tr.children[idx]) tr.children[idx].after(c); else tr.append(c);
+      }
+    }
+
+    function delRow(cell) {
+      const table = cell.closest('table');
+      if (table.rows.length <= 1) table.remove();
+      else cell.parentElement.remove();
+    }
+
+    function delCol(cell) {
+      const table = cell.closest('table');
+      const idx = [...cell.parentElement.children].indexOf(cell);
+      if (cell.parentElement.children.length <= 1) { table.remove(); return; }
+      for (const tr of table.rows) if (tr.children[idx]) tr.children[idx].remove();
+    }
+
+    async function tableAction() {
+      const cell = currentCell();
+      if (!cell) return newTable();
+      const what = await chooseDialog({
+        title: 'Таблица',
+        description: 'Курсор стоит внутри таблицы.',
+        options: [
+          { key: 'row', label: 'Добавить строку ниже', icon: 'plus' },
+          { key: 'col', label: 'Добавить столбец справа', icon: 'plus' },
+          { key: 'delrow', label: 'Удалить строку', icon: 'trash' },
+          { key: 'delcol', label: 'Удалить столбец', icon: 'trash' },
+          { key: 'new', label: 'Вставить другую таблицу', icon: 'table' },
+        ],
+      });
+      if (!what) return;
+      if (what === 'new') return newTable();
+      ({ row: addRow, col: addCol, delrow: delRow, delcol: delCol })[what](cell);
+      onEdit();
+    }
+
+    /* --- картинка в тексте ----------------------------------------------- */
+
+    const escAttr = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    async function insertImage() {
+      const files = await pickFiles('image/*', false);
+      if (!files.length) return;
+      try {
+        const a = await DB.addAsset(node.id, files[0], 'inline');
+        insertHtml(`<img data-asset="${a.id}" src="${blobUrl(a.blob)}" alt="${escAttr(a.name)}"><p><br></p>`);
+        toast('Картинка вставлена в текст');
+      } catch (err) {
+        toast('Не удалось вставить картинку: ' + err.message, 'err');
+      }
+    }
+
+    /* --- панель приёмов над текстом -------------------------------------- */
+
+    function tool(content, titleText, onclick) {
+      const b = el('button', { class: 'btn btn-ghost doc-tool', title: titleText, onclick }, [content]);
+      b.addEventListener('mousedown', (e) => e.preventDefault());   // не отбираем курсор у текста
+      return b;
+    }
+
+    const docTools = el('div', { class: 'doc-tools' }, [
+      tool(el('b', { text: 'Ж' }), 'Полужирный', () => exec('bold')),
+      tool(el('i', { text: 'К' }), 'Курсив', () => exec('italic')),
+      tool(el('span', { class: 'tool-h', text: 'H' }), 'Подзаголовок', () => exec('formatBlock', 'h3')),
+      tool(icon('list', 18), 'Список', () => exec('insertUnorderedList')),
+      el('span', { class: 'doc-tools-sep' }),
+      tool(icon('table', 18), 'Таблица', tableAction),
+      tool(icon('image', 18), 'Картинка в текст', insertImage),
+    ]);
 
     function refreshMeta() {
       const words = (node.text || '').trim() ? (node.text.trim().match(/\S+/g) || []).length : 0;
-      const media = assets.filter((a) => a.kind !== 'cover').length;
+      const media = assets.filter((a) => a.kind !== 'cover' && a.kind !== 'inline').length;
       meta.textContent = `${space ? space.name : 'пространство'} · ${words} ${plural(words, 'слово', 'слова', 'слов')} · ${media} ${plural(media, 'файл', 'файла', 'файлов')}`;
     }
 
-    const doc = el('div', { class: 'doc' }, [el('div', { class: 'doc-inner' }, [title, meta, text])]);
+    const doc = el('div', { class: 'doc' }, [
+      el('div', { class: 'doc-inner' }, [title, meta, docTools, editor]),
+    ]);
     const side = el('aside', { class: 'side' });
+
+    /* --- свиток плана: держится между объектами одного плана -------------- */
+
+    const scratchKey = 'jm.scratch.' + node.spaceId;
+    const scratchText = el('textarea', {
+      class: 'scratch-text', 'aria-label': 'Заметки плана',
+      placeholder: 'Общее для всего плана: состав партии, инициатива, чем кончилась прошлая сцена…',
+    });
+    scratchText.value = (space && space.scratch) || '';
+    const saveScratch = debounce(async (v) => { await DB.updateSpace(node.spaceId, { scratch: v }); }, 500);
+    scratchText.addEventListener('input', () => saveScratch(scratchText.value));
+
+    const scratch = el('section', { class: 'scratch' }, [
+      el('button', { class: 'scratch-tab', title: 'Заметки плана', onclick: () => setScratch(true) }, [
+        icon('note', 18),
+        el('span', { class: 'scratch-tab-label', text: 'Заметки плана' }),
+      ]),
+      el('div', { class: 'scratch-body' }, [
+        el('div', { class: 'scratch-head' }, [
+          el('h2', { class: 'scratch-title', text: 'Заметки плана' }),
+          el('span', { class: 'topbar-spacer' }),
+          el('button', { class: 'btn btn-ghost btn-icon', title: 'Свернуть', onclick: () => setScratch(false) }, [icon('close', 18)]),
+        ]),
+        el('p', { class: 'scratch-hint', text: space ? space.name : '' }),
+        scratchText,
+      ]),
+    ]);
+
+    const body = el('div', { class: 'detail-body' }, [scratch, doc, side]);
+
+    function setScratch(on) {
+      body.classList.toggle('scratch-open', on);
+      try { localStorage.setItem(scratchKey, on ? '1' : '0'); } catch (_) {}
+    }
 
     app.replaceChildren(
       topbar({
@@ -715,19 +949,22 @@
         back: { title: 'Назад в пространство', onclick: () => go('#/s/' + node.spaceId) },
         actions: [saveStatus, el('button', { class: 'btn btn-ghost btn-icon', title: 'В меню', onclick: () => go('#/') }, [icon('home')])],
       }),
-      el('div', { class: 'detail-screen', style: { height: 'calc(100dvh - 64px)' } }, [
-        el('div', { class: 'detail-body' }, [doc, side]),
-      ]),
+      el('div', { class: 'detail-screen' }, [body]),
     );
 
-    autosize();
+    setScratch(localStorage.getItem(scratchKey) === '1');
+    updateEmpty();
     refreshMeta();
 
     /* --- боковая панель -------------------------------------------------- */
 
-    const openState = { media: true, audio: false, notes: false, links: true };
+    const openState = { calc: true, media: true, audio: false, notes: false, links: true };
 
-    function panel(key, iconName, name, count, body, action) {
+    // калькулятор собираем один раз: при перерисовке панели он переезжает целиком
+    // и сохраняет введённое выражение и историю бросков
+    const calcWidget = CALC.widget();
+
+    function panel(key, iconName, name, count, content, action) {
       const p = el('details', { class: 'panel', open: openState[key] });
       p.addEventListener('toggle', () => { openState[key] = p.open; });
       p.append(
@@ -735,9 +972,9 @@
           el('span', { class: 'chev' }, [icon('chev', 16)]),
           icon(iconName, 18),
           el('span', { text: name }),
-          el('span', { class: 'count', text: String(count) }),
-        ]),
-        el('div', { class: 'panel-body' }, [body, action].filter(Boolean)),
+          count === null ? null : el('span', { class: 'count', text: String(count) }),
+        ].filter(Boolean)),
+        el('div', { class: 'panel-body' }, [content, action].filter(Boolean)),
       );
       return p;
     }
@@ -829,6 +1066,7 @@
         : el('div', { class: 'panel-empty', text: 'Связи протягиваются в пространстве — инструментом «Связь».' });
 
       side.replaceChildren(
+        panel('calc', 'calc', 'Калькулятор', null, calcWidget),
         panel('media', 'image', 'Изображения и видео', media.length, gallery,
           el('button', { class: 'btn', onclick: () => upload('image/*,video/*', 'media') }, [icon('plus', 18), 'Загрузить'])),
         panel('audio', 'music', 'Музыка', tracks.length, music,
@@ -875,8 +1113,7 @@
     }
 
     renderSide();
-    window.addEventListener('resize', autosize);
-    teardown = () => { window.removeEventListener('resize', autosize); };
+    teardown = () => { document.removeEventListener('selectionchange', rememberRange); };
   }
 
   /* ======================================================================

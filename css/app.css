@@ -278,7 +278,7 @@ textarea.field { resize: vertical; }
    Экран: пространство (холст)
    ========================================================================== */
 
-.space-screen { display: flex; flex-direction: column; height: 100dvh; }
+.space-screen { display: flex; flex-direction: column; height: calc(100dvh - 64px); }
 
 .canvas-viewport {
   position: relative;
@@ -450,13 +450,68 @@ textarea.field { resize: vertical; }
    Экран: внутренняя директория объекта
    ========================================================================== */
 
-.detail-screen { display: flex; flex-direction: column; height: 100dvh; }
+.detail-screen { display: flex; flex-direction: column; height: calc(100dvh - 64px); }
 .detail-body {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: 44px minmax(0, 1fr) 340px;   /* свиток свёрнут в узкую вкладку */
+  overflow: hidden;
+  transition: grid-template-columns var(--dur) var(--ease);
+}
+.detail-body.scratch-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
+
+/* --- свиток плана (слева) ------------------------------------------------ */
+
+.scratch {
+  display: flex;
+  min-width: 0;
+  border-right: 1px solid var(--line-soft);
+  background: var(--panel);
   overflow: hidden;
 }
+.scratch-tab {
+  flex: none;
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.scratch-tab:hover { color: var(--gold-bright); background: var(--panel-2); }
+.scratch-tab-label {
+  writing-mode: vertical-rl;
+  font-family: var(--font-head);
+  font-size: 14px;
+  letter-spacing: .1em;
+  white-space: nowrap;
+}
+.scratch-body { display: none; flex: 1; min-width: 0; flex-direction: column; padding: 16px; gap: 8px; }
+.scratch-open .scratch-tab { display: none; }
+.scratch-open .scratch-body { display: flex; }
+.scratch-head { display: flex; align-items: center; gap: 8px; }
+.scratch-title { font-size: 20px; color: var(--gold-bright); }
+.scratch-hint { margin: 0; font-size: 14px; color: var(--ink-faint); }
+.scratch-text {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--bg-deep);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.6;
+  resize: none;
+}
+.scratch-text:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,162,39,.15); }
+.scratch-text::placeholder { color: var(--ink-faint); }
 
 .doc {
   overflow-y: auto;
@@ -477,6 +532,20 @@ textarea.field { resize: vertical; }
 }
 .doc-title:focus { outline: none; border-bottom-color: var(--line); }
 .doc-meta { font-size: 14px; color: var(--ink-faint); margin: 4px 0 16px; }
+/* панель приёмов над текстом */
+.doc-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.doc-tool { min-width: 44px; min-height: 44px; padding: 8px; font-size: 16px; }
+.doc-tool .tool-h { font-family: var(--font-head); font-weight: 700; }
+.doc-tools-sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
+
 .doc-text {
   width: 100%;
   min-height: 52vh;
@@ -485,11 +554,57 @@ textarea.field { resize: vertical; }
   padding: 0;
   font-size: 16px;
   line-height: 1.7;
-  resize: none;
   color: var(--ink);
 }
 .doc-text:focus { outline: none; }
-.doc-text::placeholder { color: var(--ink-faint); }
+.doc-text.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+/* содержимое текста объекта */
+.doc-text > *:first-child { margin-top: 0; }
+.doc-text p { margin: 0 0 12px; }
+.doc-text h3 { font-size: 20px; color: var(--gold-bright); margin: 24px 0 8px; }
+.doc-text ul, .doc-text ol { margin: 0 0 12px; padding-left: 24px; }
+.doc-text li { margin-bottom: 4px; }
+.doc-text blockquote {
+  margin: 0 0 12px;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--gold);
+  color: var(--ink-dim);
+}
+.doc-text img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.doc-text .img-missing { color: var(--ink-faint); font-size: 14px; }
+.doc-text table {
+  width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+.doc-text th, .doc-text td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  min-width: 48px;
+}
+/* шапка — основным шрифтом: в Cinzel цифра 1 неотличима от буквы I */
+.doc-text th {
+  background: var(--panel-2);
+  font-weight: 600;
+  color: var(--gold-bright);
+}
+.doc-text tbody tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+.doc-text td:focus, .doc-text th:focus { outline: 2px solid var(--gold); outline-offset: -2px; }
 
 .side {
   border-left: 1px solid var(--line-soft);
@@ -580,6 +695,59 @@ textarea.field { resize: vertical; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
 
+/* --- калькулятор --------------------------------------------------------- */
+
+.calc { display: flex; flex-direction: column; gap: 8px; }
+/* цифры — основным шрифтом: в Cinzel единица похожа на «I» */
+.calc-display {
+  font-size: 20px;
+  letter-spacing: .02em;
+  text-align: right;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.calc-out {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  text-align: right;
+}
+.calc-value { font-size: 24px; font-variant-numeric: lining-nums tabular-nums; color: var(--gold-bright); line-height: 1.2; }
+.calc-detail { font-size: 14px; color: var(--ink-dim); margin-top: 4px; overflow-wrap: anywhere; }
+.calc-err { font-size: 14px; color: #f3b3a8; }
+
+.calc-dice { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.calc-die { min-height: 44px; padding: 8px 4px; font-family: var(--font-head); font-size: 14px; color: var(--gold-bright); }
+
+.calc-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.calc-key { min-height: 44px; padding: 8px 4px; font-size: 20px; font-variant-numeric: lining-nums; }
+.calc-key-soft { color: var(--ink-dim); }
+
+.calc-history { display: flex; flex-direction: column; gap: 4px; }
+.calc-hist {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.calc-hist:hover { background: var(--panel-2); color: var(--ink); }
+.calc-hist .ch-src { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calc-hist .ch-val { color: var(--gold); font-variant-numeric: lining-nums tabular-nums; }
+
+/* --- список вариантов в окне --------------------------------------------- */
+
+.choice-list { display: flex; flex-direction: column; gap: 4px; }
+.choice { justify-content: flex-start; text-align: left; }
+
 /* мини-плеер, живущий между экранами */
 .player {
   position: fixed;
@@ -668,14 +836,24 @@ textarea.field { resize: vertical; }
    ========================================================================== */
 
 @media (max-width: 900px) {
-  .detail-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  /* три колонки на телефон не влезают — раскладываем их в обычную
+     вертикальную прокрутку страницы: свиток, текст, панели */
+  .detail-screen { height: auto; }
+  .detail-body {
+    display: block;
+    overflow: visible;
+    transition: none;
+  }
+  .doc, .side { overflow: visible; }
+  .scratch { display: block; border-right: 0; border-bottom: 1px solid var(--line-soft); }
+  .scratch-tab { flex-direction: row; width: 100%; min-height: 44px; padding: 0 16px; justify-content: flex-start; }
+  .scratch-tab-label { writing-mode: horizontal-tb; }
+  .scratch-body { padding: 12px 16px 16px; }
+  .scratch-text { min-height: 128px; }
   .doc { padding: 24px 16px 32px; }
   .doc-title { font-size: 24px; }
-  .side {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-    max-height: 46dvh;
-  }
+  .doc-text { min-height: 40vh; }
+  .side { border-left: 0; border-top: 1px solid var(--line); }
 }
 
 @media (max-width: 600px) {
