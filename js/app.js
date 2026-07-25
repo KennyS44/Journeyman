@@ -651,6 +651,53 @@
   }, 300);
 
   /* ======================================================================
+     Свиток плана
+     Один и тот же узел переезжает между объектами одного плана, поэтому
+     заметка остаётся на месте: не мигает, не теряет позицию прокрутки и
+     не сбрасывает несохранённый текст. При смене плана строится заново.
+     ====================================================================== */
+
+  let scratchCache = null;     // { spaceId, root, area }
+  let scratchHost = null;      // текущий .detail-body, на нём живёт класс
+
+  function setScratchOpen(on) {
+    if (scratchHost) scratchHost.classList.toggle('scratch-open', on);
+    if (!scratchCache) return;
+    try { localStorage.setItem('jm.scratch.' + scratchCache.spaceId, on ? '1' : '0'); } catch (_) {}
+  }
+
+  function scratchPanel(space) {
+    if (scratchCache && scratchCache.spaceId === space.id) return scratchCache;
+
+    const area = el('textarea', {
+      class: 'scratch-text', 'aria-label': 'Заметки плана',
+      placeholder: 'Общее для всего плана: состав партии, инициатива, чем кончилась прошлая сцена…',
+    });
+    area.value = space.scratch || '';
+    const saveScratch = debounce((v) => DB.updateSpace(space.id, { scratch: v }), 500);
+    area.addEventListener('input', () => saveScratch(area.value));
+
+    const root = el('section', { class: 'scratch' }, [
+      el('button', { class: 'scratch-tab', title: 'Заметки плана', onclick: () => setScratchOpen(true) }, [
+        icon('note', 18),
+        el('span', { class: 'scratch-tab-label', text: 'Заметки плана' }),
+      ]),
+      el('div', { class: 'scratch-body' }, [
+        el('div', { class: 'scratch-head' }, [
+          el('h2', { class: 'scratch-title', text: 'Заметки плана' }),
+          el('span', { class: 'topbar-spacer' }),
+          el('button', { class: 'btn btn-ghost btn-icon', title: 'Свернуть', onclick: () => setScratchOpen(false) }, [icon('close', 18)]),
+        ]),
+        el('p', { class: 'scratch-hint', text: space.name }),
+        area,
+      ]),
+    ]);
+
+    scratchCache = { spaceId: space.id, root, area };
+    return scratchCache;
+  }
+
+  /* ======================================================================
      Экран 3 — внутренняя директория объекта
      ====================================================================== */
 
@@ -908,39 +955,80 @@
     ]);
     const side = el('aside', { class: 'side' });
 
-    /* --- свиток плана: держится между объектами одного плана -------------- */
+    /* --- размер картинок меняется перетягиванием за углы ------------------ */
 
-    const scratchKey = 'jm.scratch.' + node.spaceId;
-    const scratchText = el('textarea', {
-      class: 'scratch-text', 'aria-label': 'Заметки плана',
-      placeholder: 'Общее для всего плана: состав партии, инициатива, чем кончилась прошлая сцена…',
-    });
-    scratchText.value = (space && space.scratch) || '';
-    const saveScratch = debounce(async (v) => { await DB.updateSpace(node.spaceId, { scratch: v }); }, 500);
-    scratchText.addEventListener('input', () => saveScratch(scratchText.value));
+    const CORNERS = { nw: -1, sw: -1, ne: 1, se: 1 };   // знак: как угол меняет ширину
+    const imgFrame = el('div', { class: 'img-frame', hidden: true },
+      Object.keys(CORNERS).map((c) => el('span', { class: 'ih ih-' + c, dataset: { corner: c } })));
+    doc.append(imgFrame);
 
-    const scratch = el('section', { class: 'scratch' }, [
-      el('button', { class: 'scratch-tab', title: 'Заметки плана', onclick: () => setScratch(true) }, [
-        icon('note', 18),
-        el('span', { class: 'scratch-tab-label', text: 'Заметки плана' }),
-      ]),
-      el('div', { class: 'scratch-body' }, [
-        el('div', { class: 'scratch-head' }, [
-          el('h2', { class: 'scratch-title', text: 'Заметки плана' }),
-          el('span', { class: 'topbar-spacer' }),
-          el('button', { class: 'btn btn-ghost btn-icon', title: 'Свернуть', onclick: () => setScratch(false) }, [icon('close', 18)]),
-        ]),
-        el('p', { class: 'scratch-hint', text: space ? space.name : '' }),
-        scratchText,
-      ]),
-    ]);
+    let activeImg = null;
 
-    const body = el('div', { class: 'detail-body' }, [scratch, doc, side]);
+    function hideFrame() { activeImg = null; imgFrame.hidden = true; }
 
-    function setScratch(on) {
-      body.classList.toggle('scratch-open', on);
-      try { localStorage.setItem(scratchKey, on ? '1' : '0'); } catch (_) {}
+    function placeFrame() {
+      if (!activeImg || !editor.contains(activeImg)) return hideFrame();
+      const dr = doc.getBoundingClientRect();
+      const ir = activeImg.getBoundingClientRect();
+      imgFrame.hidden = false;
+      imgFrame.style.left = (ir.left - dr.left + doc.scrollLeft) + 'px';
+      imgFrame.style.top = (ir.top - dr.top + doc.scrollTop) + 'px';
+      imgFrame.style.width = ir.width + 'px';
+      imgFrame.style.height = ir.height + 'px';
     }
+
+    editor.addEventListener('click', (e) => {
+      const img = e.target.tagName === 'IMG' ? e.target : null;
+      if (img) { activeImg = img; placeFrame(); } else hideFrame();
+    });
+    editor.addEventListener('input', () => { if (activeImg) placeFrame(); });
+    doc.addEventListener('scroll', () => { if (activeImg) placeFrame(); }, { passive: true });
+    const onWinResize = () => { if (activeImg) placeFrame(); };
+    window.addEventListener('resize', onWinResize);
+
+    for (const h of imgFrame.querySelectorAll('.ih')) {
+      h.addEventListener('pointerdown', (e) => {
+        if (!activeImg) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const grow = CORNERS[h.dataset.corner];
+        const startX = e.clientX;
+        const startW = activeImg.getBoundingClientRect().width;
+        const maxW = editor.clientWidth;
+        const img = activeImg;
+        h.setPointerCapture(e.pointerId);
+
+        const move = (ev) => {
+          const w = clamp(Math.round(startW + (ev.clientX - startX) * grow), 48, maxW);
+          img.setAttribute('width', w);
+          placeFrame();
+        };
+        const up = (ev) => {
+          try { h.releasePointerCapture(ev.pointerId); } catch (_) {}
+          h.removeEventListener('pointermove', move);
+          h.removeEventListener('pointerup', up);
+          h.removeEventListener('pointercancel', up);
+          placeFrame();
+          onEdit();
+        };
+        h.addEventListener('pointermove', move);
+        h.addEventListener('pointerup', up);
+        h.addEventListener('pointercancel', up);
+      });
+    }
+
+    /* --- свиток плана: тот же узел, что и на прошлом объекте -------------- */
+
+    const scratch = scratchPanel(space || { id: node.spaceId, name: '', scratch: '' });
+    // при переносе узла браузер сбрасывает прокрутку — запоминаем её
+    const keep = {
+      scroll: scratch.area.scrollTop,
+      start: scratch.area.selectionStart,
+      end: scratch.area.selectionEnd,
+    };
+
+    const body = el('div', { class: 'detail-body' }, [scratch.root, doc, side]);
+    scratchHost = body;
 
     app.replaceChildren(
       topbar({
@@ -952,17 +1040,20 @@
       el('div', { class: 'detail-screen' }, [body]),
     );
 
-    setScratch(localStorage.getItem(scratchKey) === '1');
+    setScratchOpen(localStorage.getItem('jm.scratch.' + node.spaceId) === '1');
+    scratch.area.scrollTop = keep.scroll;
+    try { scratch.area.setSelectionRange(keep.start, keep.end); } catch (_) {}
     updateEmpty();
     refreshMeta();
 
     /* --- боковая панель -------------------------------------------------- */
 
-    const openState = { calc: true, media: true, audio: false, notes: false, links: true };
+    const openState = { dice: true, calc: true, media: true, audio: false, notes: false, links: true };
 
-    // калькулятор собираем один раз: при перерисовке панели он переезжает целиком
-    // и сохраняет введённое выражение и историю бросков
+    // калькулятор и кубики собираем один раз: при перерисовке панели они
+    // переезжают целиком и сохраняют введённое выражение и выпавшие значения
     const calcWidget = CALC.widget();
+    const diceWidget = CALC.diceWidget();
 
     function panel(key, iconName, name, count, content, action) {
       const p = el('details', { class: 'panel', open: openState[key] });
@@ -1066,6 +1157,7 @@
         : el('div', { class: 'panel-empty', text: 'Связи протягиваются в пространстве — инструментом «Связь».' });
 
       side.replaceChildren(
+        panel('dice', 'd20', 'Кубики', null, diceWidget),
         panel('calc', 'calc', 'Калькулятор', null, calcWidget),
         panel('media', 'image', 'Изображения и видео', media.length, gallery,
           el('button', { class: 'btn', onclick: () => upload('image/*,video/*', 'media') }, [icon('plus', 18), 'Загрузить'])),
@@ -1113,7 +1205,10 @@
     }
 
     renderSide();
-    teardown = () => { document.removeEventListener('selectionchange', rememberRange); };
+    teardown = () => {
+      document.removeEventListener('selectionchange', rememberRange);
+      window.removeEventListener('resize', onWinResize);
+    };
   }
 
   /* ======================================================================

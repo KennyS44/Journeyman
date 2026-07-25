@@ -514,9 +514,34 @@ textarea.field { resize: vertical; }
 .scratch-text::placeholder { color: var(--ink-faint); }
 
 .doc {
+  position: relative;
   overflow-y: auto;
   padding: 32px 32px 48px;
 }
+
+/* рамка с углами для изменения размера картинки */
+.img-frame {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid var(--gold);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+}
+.ih {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--bg-deep);
+  border-radius: 3px;
+  background: var(--gold-bright);
+  pointer-events: auto;
+  touch-action: none;
+}
+.ih::before { content: ""; position: absolute; inset: -11px; }   /* зона захвата 36px */
+.ih-nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.ih-ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.ih-sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.ih-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
 .doc-inner { max-width: 72ch; margin: 0 auto; }
 .doc-title {
   width: 100%;
@@ -578,10 +603,11 @@ textarea.field { resize: vertical; }
 .doc-text img {
   display: block;
   max-width: 100%;
-  height: auto;
+  height: auto;              /* высота подстраивается — пропорции не плывут */
   margin: 12px 0;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
+  cursor: pointer;
 }
 .doc-text .img-missing { color: var(--ink-faint); font-size: 14px; }
 .doc-text table {
@@ -615,6 +641,10 @@ textarea.field { resize: vertical; }
   flex-direction: column;
   gap: 8px;
 }
+
+/* панели не должны сжиматься в колонке: иначе низ содержимого срезается
+   через overflow и до него нельзя добраться даже прокруткой */
+.side > * { flex: none; }
 
 .panel { border: 1px solid var(--line-soft); border-radius: var(--r-md); background: var(--bg-deep); overflow: hidden; }
 .panel > summary {
@@ -717,12 +747,82 @@ textarea.field { resize: vertical; }
 .calc-detail { font-size: 14px; color: var(--ink-dim); margin-top: 4px; overflow-wrap: anywhere; }
 .calc-err { font-size: 14px; color: #f3b3a8; }
 
-.calc-dice { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.calc-die { min-height: 44px; padding: 8px 4px; font-family: var(--font-head); font-size: 14px; color: var(--gold-bright); }
-
 .calc-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .calc-key { min-height: 44px; padding: 8px 4px; font-size: 20px; font-variant-numeric: lining-nums; }
+.calc-key.is-wide { grid-column: span 2; }
 .calc-key-soft { color: var(--ink-dim); }
+
+/* --- кубики -------------------------------------------------------------- */
+
+.dice { display: flex; flex-direction: column; gap: 8px; }
+.dice-faces { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.dice-face {
+  min-height: 44px;
+  padding: 8px 4px;
+  font-family: var(--font-head);
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+.dice-face.is-active {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, #6a5217, #4a3810);
+  color: var(--gold-bright);
+}
+
+.dice-row { display: flex; align-items: center; gap: 8px; }
+.dice-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-deep);
+}
+.dice-count-value {
+  min-width: 32px;
+  text-align: center;
+  font-size: 20px;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+}
+.dice-roll { flex: 1; }
+
+.dice-out { display: flex; flex-direction: column; gap: 8px; }
+.dice-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.dice-chips:empty { display: none; }
+
+.die-chip {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  color: var(--ink);
+  font-size: 20px;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.die-chip.is-rolling { color: var(--ink-faint); opacity: .8; }
+.die-chip.is-settled {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+  animation: die-settle var(--dur) var(--ease);
+}
+.die-chip.is-max { box-shadow: 0 0 0 1px var(--gold), 0 0 12px rgba(232,200,90,.35); }
+.die-chip.is-min { color: #d98d7e; border-color: #7a3b31; }
+
+@keyframes die-settle {
+  from { transform: scale(.86); opacity: .5 }
+  to   { transform: none; opacity: 1 }
+}
+
+.dice-total { display: flex; align-items: baseline; gap: 8px; }
+.dice-total:empty { display: none; }
+.dice-sum { font-size: 24px; color: var(--gold-bright); font-variant-numeric: lining-nums tabular-nums; }
+.dice-sum-cap { font-size: 14px; color: var(--ink-faint); }
 
 .calc-history { display: flex; flex-direction: column; gap: 4px; }
 .calc-hist {

@@ -125,15 +125,14 @@ const CALC = (() => {
 
   const format = (n) => Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
 
-  /* --- виджет ------------------------------------------------------------ */
+  /* --- виджет калькулятора ----------------------------------------------- */
 
-  const DICE = [4, 6, 8, 10, 12, 20, 100];
   const KEYS = [
     ['7', '8', '9', '÷'],
     ['4', '5', '6', '×'],
     ['1', '2', '3', '−'],
     ['(', ')', '.', '+'],
-    ['C', '⌫', 'd', '='],
+    ['C', '⌫', '='],          // «=» занимает две клетки, см. .is-wide
   ];
   const INSERT = { '÷': '/', '×': '*', '−': '-' };
 
@@ -193,21 +192,108 @@ const CALC = (() => {
       if (e.key === 'Enter') { e.preventDefault(); run(); }
     });
 
-    const diceRow = el('div', { class: 'calc-dice' }, DICE.map((d) =>
-      el('button', {
-        class: 'btn calc-die', title: `Бросить d${d}`,
-        onclick: () => { input.value = input.value.trim() ? input.value + `+d${d}` : `d${d}`; run(); },
-        text: 'd' + d,
-      })));
-
     const pad = el('div', { class: 'calc-pad' }, KEYS.flat().map((k) =>
       el('button', {
-        class: 'btn calc-key' + (k === '=' ? ' btn-primary' : '') + ('C⌫'.includes(k) ? ' calc-key-soft' : ''),
+        class: 'btn calc-key'
+          + (k === '=' ? ' btn-primary is-wide' : '')
+          + ('C⌫'.includes(k) ? ' calc-key-soft' : ''),
         onclick: () => press(k), text: k,
       })));
 
-    return el('div', { class: 'calc' }, [input, out, diceRow, pad, history]);
+    return el('div', { class: 'calc' }, [input, out, pad, history]);
   }
 
-  return { evaluate, format, widget };
+  /* --- виджет кубиков ----------------------------------------------------- */
+
+  const DICE = [4, 6, 8, 10, 12, 20, 100];
+  const SPIN_MS = 700;
+  const TICK_MS = 70;
+  const MAX_COUNT = 20;
+
+  /** Выбор кубика и количества, бросок с анимацией. */
+  function diceWidget() {
+    const { el, icon } = UI;
+
+    let die = 20;
+    let count = 1;
+    let timer = null;
+
+    const faces = el('div', { class: 'dice-faces' }, DICE.map((d) =>
+      el('button', {
+        class: 'btn dice-face' + (d === die ? ' is-active' : ''),
+        'aria-pressed': d === die ? 'true' : 'false',
+        text: 'd' + d,
+        onclick: (e) => {
+          die = d;
+          faces.querySelectorAll('.dice-face').forEach((b) => {
+            const on = b.textContent === 'd' + d;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          e.currentTarget.blur();
+        },
+      })));
+
+    const countLabel = el('span', { class: 'dice-count-value', text: '1' });
+    const setCount = (n) => {
+      count = Math.min(MAX_COUNT, Math.max(1, n));
+      countLabel.textContent = String(count);
+    };
+    const counter = el('div', { class: 'dice-count' }, [
+      el('button', { class: 'btn btn-icon', title: 'Меньше кубиков', onclick: () => setCount(count - 1) }, [icon('minus', 18)]),
+      countLabel,
+      el('button', { class: 'btn btn-icon', title: 'Больше кубиков', onclick: () => setCount(count + 1) }, [icon('plus', 18)]),
+    ]);
+
+    const chips = el('div', { class: 'dice-chips' });
+    const total = el('div', { class: 'dice-total' });
+    const out = el('div', { class: 'dice-out' }, [chips, total]);
+
+    const rollBtn = el('button', { class: 'btn btn-primary dice-roll', onclick: roll }, [
+      icon('d20', 18), el('span', { text: 'Бросить' }),
+    ]);
+
+    function roll() {
+      if (timer) { clearInterval(timer); timer = null; }
+      // новый бросок стирает прошлые значения
+      chips.replaceChildren();
+      total.replaceChildren();
+
+      const values = Array.from({ length: count }, () => 1 + Math.floor(Math.random() * die));
+      const cells = values.map(() => el('span', { class: 'die-chip is-rolling', text: '?' }));
+      chips.replaceChildren(...cells);
+
+      const finish = () => {
+        cells.forEach((c, i) => {
+          c.textContent = String(values[i]);
+          c.classList.remove('is-rolling');
+          c.classList.add('is-settled');
+          if (values[i] === die) c.classList.add('is-max');
+          if (values[i] === 1) c.classList.add('is-min');
+        });
+        const sum = values.reduce((a, b) => a + b, 0);
+        total.replaceChildren(el('span', { class: 'dice-sum', text: String(sum) }),
+          el('span', { class: 'dice-sum-cap', text: `${count}d${die}` }));
+        rollBtn.disabled = false;
+        timer = null;
+      };
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return finish();
+
+      rollBtn.disabled = true;
+      const started = Date.now();
+      timer = setInterval(() => {
+        for (const c of cells) c.textContent = String(1 + Math.floor(Math.random() * die));
+        if (Date.now() - started >= SPIN_MS) { clearInterval(timer); finish(); }
+      }, TICK_MS);
+    }
+
+    return el('div', { class: 'dice' }, [
+      faces,
+      el('div', { class: 'dice-row' }, [counter, rollBtn]),
+      out,
+    ]);
+  }
+
+  return { evaluate, format, widget, diceWidget };
 })();

@@ -187,7 +187,7 @@ const UI = (() => {
   function attrOk(tag, name, value) {
     const n = name.toLowerCase();
     if (n === 'colspan' || n === 'rowspan') return true;
-    if (tag === 'IMG') return n === 'data-asset' || n === 'alt';
+    if (tag === 'IMG') return n === 'data-asset' || n === 'alt' || (n === 'width' && /^\d+$/.test(value));
     if (tag === 'A') return n === 'href' && /^(https?:|mailto:)/i.test(value);
     return false;
   }
