@@ -16,16 +16,28 @@ vm.createContext(sandbox);
 // поэтому берём его как значение последнего выражения скрипта.
 const { evaluate, format } = vm.runInContext(source + '\n;CALC;', sandbox, { filename: 'js/calc.js' });
 
-let passed = 0;
-const failures = [];
+/* --- маленький бегунок --------------------------------------------------- */
+
+const COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code, s) => (COLOR ? `\x1b[${code}m${s}\x1b[0m` : s);
+const dim = (s) => paint('2', s);
+const red = (s) => paint('31', s);
+const green = (s) => paint('32', s);
+const bold = (s) => paint('1', s);
+
+const groups = [];
+let current = null;
+
+/** Начинает раздел: следующие проверки попадут под этот заголовок. */
+function group(title) {
+  current = { title, cases: [] };
+  groups.push(current);
+}
 
 function check(name, fn) {
-  try {
-    fn();
-    passed++;
-  } catch (err) {
-    failures.push(`${name}\n    ${err.message}`);
-  }
+  let error = null;
+  try { fn(); } catch (err) { error = err.message; }
+  current.cases.push({ name, error });
 }
 
 function eq(actual, expected) {
@@ -57,8 +69,9 @@ function inRange(src, min, max, runs = 200) {
   });
 }
 
-/* --- арифметика --------------------------------------------------------- */
+/* --- проверки ------------------------------------------------------------ */
 
+group('Арифметика');
 value('2+2', 4);
 value('2+2*2', 6);
 value('(2+2)*2', 8);
@@ -70,15 +83,19 @@ value('-(3+4)', -7);
 value('--5', 5);
 value('+7', 7);
 value('2*-3', -6);
+value('((((1))))', 1);
+
+group('Запись чисел и знаков');
 value('1,5+1,5', 3);        // запятая как десятичный разделитель
 value('2 + 2', 4);          // пробелы
 value('6×7', 42);           // типографские знаки
 value('84÷2', 42);
 value('5−2', 3);            // минус U+2212
-value('((((1))))', 1);
+value('1.5*2', 3);
+value('.5+.5', 1);
+fails('1.2.3', 'Непонятное число');   // два разделителя — это не число
 
-/* --- ошибки разбора ------------------------------------------------------ */
-
+group('Ошибки разбора');
 fails('2+', 'обрывается');
 fails('(2+2', 'Не закрыта скобка');
 fails('2+2)', 'Лишнее в конце');
@@ -88,8 +105,7 @@ fails('10/(5-5)', 'Деление на ноль');
 fails('2 $ 2', 'Непонятный символ');
 fails('()', 'ожидалось число');
 
-/* --- кубики -------------------------------------------------------------- */
-
+group('Кубики');
 inRange('d20', 1, 20);
 inRange('2d6', 2, 12);
 inRange('4d6*2', 8, 48);
@@ -106,9 +122,9 @@ check('2d6 отдаёт разбор броска', () => {
   eq(r.rolls[0].dice.length, 2);
   eq(r.rolls[0].dice.reduce((a, b) => a + b, 0), r.value);
 });
-
 check('2d6+d4 отдаёт два броска', () => eq(evaluate('2d6+d4').rolls.length, 2));
 
+group('Границы кубиков');
 fails('d1', 'хотя бы d2');
 fails('0d6', 'хотя бы d2');
 fails('201d6', 'Не больше 200');
@@ -117,25 +133,29 @@ fails('2d', 'нужно число граней');
 fails('d', 'нужно число граней');
 fails('2d6d4', 'Лишнее в конце');
 
-/* --- дробные числа ------------------------------------------------------- */
+group('Вывод чисел');
+check('целое без хвоста', () => eq(format(42), '42'));
+check('дробное с точкой', () => eq(format(2.5), '2.5'));
+check('отрицательное', () => eq(format(-3), '-3'));
 
-value('1.5*2', 3);
-value('.5+.5', 1);
-fails('1.2.3', 'Непонятное число');   // два разделителя — это не число
+/* --- отчёт --------------------------------------------------------------- */
 
-/* --- format -------------------------------------------------------------- */
+const all = groups.flatMap((g) => g.cases);
+const broken = all.filter((c) => c.error);
 
-check('format целых', () => eq(format(42), '42'));
-check('format дробных', () => eq(format(2.5), '2.5'));
-check('format отрицательных', () => eq(format(-3), '-3'));
-
-/* --- итог ---------------------------------------------------------------- */
-
-const total = passed + failures.length;
-if (failures.length) {
-  console.log(`\nПровалено ${failures.length} из ${total}:\n`);
-  failures.forEach((f, i) => console.log(`  ${i + 1}. ${f}`));
+console.log(`\n${bold('Парсер выражений')} ${dim('js/calc.js')}\n`);
+for (const g of groups) {
+  const bad = g.cases.filter((c) => c.error).length;
+  console.log(`  ${g.title} ${dim(`(${g.cases.length - bad}/${g.cases.length})`)}`);
+  for (const c of g.cases) {
+    if (c.error) console.log(`    ${red('✗')} ${c.name}\n      ${red(c.error)}`);
+    else console.log(`    ${green('✓')} ${dim(c.name)}`);
+  }
   console.log('');
-  process.exit(1);
 }
-console.log(`Все ${total} проверок прошли.`);
+
+const summary = broken.length
+  ? red(`✗ провалено ${broken.length} из ${all.length}`)
+  : green(`✓ все ${all.length} проверок прошли`);
+console.log(`  ${bold(summary)}\n`);
+process.exit(broken.length ? 1 : 0);
