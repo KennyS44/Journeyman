@@ -21,8 +21,10 @@ const CALC = (() => {
       if (/[0-9.]/.test(c)) {
         let j = i;
         while (j < s.length && /[0-9.]/.test(s[j])) j++;
-        const num = parseFloat(s.slice(i, j));
-        if (Number.isNaN(num)) throw new Error('Непонятное число');
+        const raw = s.slice(i, j);
+        // parseFloat молча обрезает хвост («1.2.3» → 1.2), поэтому проверяем вид числа
+        if (!/^(\d+(\.\d*)?|\.\d+)$/.test(raw)) throw new Error('Непонятное число');
+        const num = parseFloat(raw);
         out.push({ t: 'num', v: num });
         i = j;
         continue;
