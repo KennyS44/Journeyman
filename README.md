@@ -7,6 +7,9 @@
 слои, потоки данных, выбор IndexedDB против localStorage (с замерами),
 рекурсивный спуск против `eval`, известные ограничения.
 
+Разбор каждой функции по отдельности — [CODE-WALKTHROUGH.md](CODE-WALKTHROUGH.md):
+что делает, почему сделано так и чем за это заплачено.
+
 ## Запуск на своём компьютере
 
     git clone https://github.com/KennyS44/Journeyman.git
