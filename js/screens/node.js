@@ -24,6 +24,11 @@ const NODE = (() => {
     try { localStorage.setItem('jm.scratch.' + scratchCache.spaceId, on ? '1' : '0'); } catch (_) {}
   }
 
+  /** Был ли свиток открыт в прошлый раз. Запрет хранилища — просто «закрыт». */
+  function scratchWasOpen(spaceId) {
+    try { return localStorage.getItem('jm.scratch.' + spaceId) === '1'; } catch (_) { return false; }
+  }
+
   function scratchPanel(space) {
     if (scratchCache && scratchCache.spaceId === space.id) return scratchCache;
 
@@ -398,7 +403,7 @@ const NODE = (() => {
       el('div', { class: 'detail-screen' }, [body]),
     );
 
-    setScratchOpen(localStorage.getItem('jm.scratch.' + node.spaceId) === '1');
+    setScratchOpen(scratchWasOpen(node.spaceId));
     scratch.area.scrollTop = keep.scroll;
     try { scratch.area.setSelectionRange(keep.start, keep.end); } catch (_) {}
     updateEmpty();
