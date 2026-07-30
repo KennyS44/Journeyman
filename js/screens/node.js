@@ -112,7 +112,9 @@ const NODE = (() => {
 
     const saveDoc = debounce(async () => {
       const html = serialize();
-      const plain = editor.innerText.replace(/ /g, ' ').trim();
+      // contenteditable ставит неразрывные пробелы — в простой копии текста
+      // они не нужны: по ней считаются слова и её увидит будущий экспорт
+      const plain = editor.innerText.replace(/\u00a0/g, ' ').trim();
       node.html = html;
       node.text = plain;
       await DB.updateNode(node.id, { html, text: plain });
