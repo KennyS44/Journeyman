@@ -97,7 +97,11 @@ const APP = (() => {
      Старт — когда все экраны уже загружены
      ====================================================================== */
 
-  document.addEventListener('DOMContentLoaded', route);
+  document.addEventListener('DOMContentLoaded', async () => {
+    // на пустом хранилище раскладывается демо-сцена, иначе шаг ничего не делает
+    try { await DEMO.seedIfEmpty(); } catch (err) { console.error(err); }
+    route();
+  });
 
   return { root, go, route, topbar, clamp, playTrack, setTeardown };
 })();

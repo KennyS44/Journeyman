@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" role="img" aria-label="Таверна: кружка эля">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="44%" r="62%">
+      <stop offset="0" stop-color="#2a2114"/><stop offset="1" stop-color="#0d0a07"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <rect x="24" y="24" width="752" height="552" fill="none" stroke="#3d3122" stroke-width="2"/>
+  <g fill="none" stroke="#8d7d66" stroke-width="3" stroke-linecap="round">
+    <path d="M344 186c-16-18-16-36 0-54s16-36 0-54"/>
+    <path d="M404 178c-16-18-16-36 0-54s16-36 0-54"/>
+    <path d="M464 186c-16-18-16-36 0-54s16-36 0-54"/>
+  </g>
+  <g fill="none" stroke="#c9a227" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M296 246h216v226a26 26 0 0 1-26 26H322a26 26 0 0 1-26-26z"/>
+    <path d="M296 246c28-22 60-32 108-32s80 10 108 32" stroke="#e8c85a"/>
+    <path d="M512 292h48a44 44 0 0 1 44 44v56a44 44 0 0 1-44 44h-48"/>
+    <path d="M296 320h216" stroke="#3d3122"/>
+    <path d="M348 352v104M404 352v104M460 352v104" stroke="#3d3122" stroke-width="2"/>
+  </g>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" role="img" aria-label="Логово культа: сигил и пламя">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="48%" r="60%">
+      <stop offset="0" stop-color="#2b1a10"/><stop offset="1" stop-color="#0d0a07"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <rect x="24" y="24" width="752" height="552" fill="none" stroke="#3d3122" stroke-width="2"/>
+  <g fill="none" stroke="#c9a227" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="400" cy="300" r="168"/>
+    <circle cx="400" cy="300" r="140" stroke="#3d3122" stroke-width="2"/>
+    <path d="M400 168 530 372H270z"/>
+    <path d="M400 236c34 44 52 76 52 100a52 52 0 0 1-104 0c0-24 18-56 52-100z" stroke="#b4552d"/>
+    <path d="M400 300c14 20 22 34 22 46a22 22 0 0 1-44 0c0-12 8-26 22-46z" stroke="#e8c85a"/>
+  </g>
+  <g fill="none" stroke="#8d7d66" stroke-width="3" stroke-linecap="round">
+    <path d="M196 300h-48M652 300h-48M400 132V84M400 516v-48"/>
+  </g>
+</svg>

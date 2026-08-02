@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" role="img" aria-label="Курган Древних: стоячие камни под луной">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="40%" r="64%">
+      <stop offset="0" stop-color="#241d14"/><stop offset="1" stop-color="#0d0a07"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <rect x="24" y="24" width="752" height="552" fill="none" stroke="#3d3122" stroke-width="2"/>
+  <circle cx="400" cy="152" r="60" fill="none" stroke="#c9a227" stroke-width="3"/>
+  <circle cx="374" cy="132" r="12" fill="none" stroke="#3d3122" stroke-width="2"/>
+  <circle cx="420" cy="170" r="8" fill="none" stroke="#3d3122" stroke-width="2"/>
+  <g fill="none" stroke="#c9a227" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M160 470V330l52-14v154z"/>
+    <path d="M268 470V292l58-16v194z"/>
+    <path d="M474 470V276l58 16v178z"/>
+    <path d="M588 470V316l52 14v140z"/>
+    <path d="M326 268h148v40H326z"/>
+  </g>
+  <path d="M96 470h608" fill="none" stroke="#8d7d66" stroke-width="3" stroke-linecap="round"/>
+  <path d="M150 512h500" fill="none" stroke="#3d3122" stroke-width="2" stroke-linecap="round"/>
+</svg>
