@@ -1,0 +1,3 @@
+# Появляется, только если ставить Playwright для tests/roundtrip.browser.js.
+# Сам сайт зависимостей не имеет и сборки не требует.
+node_modules/
