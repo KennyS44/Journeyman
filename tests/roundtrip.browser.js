@@ -130,6 +130,10 @@ const step = async (page, name) => {
   await page.setInputFiles('#file-input', mp3File);
   await page.waitForSelector('.track-name');
 
+  // громкость: уровень один на всё приложение и живёт в localStorage
+  await page.evaluate(() => { document.querySelector('.track audio').volume = 0.35; });
+  await page.waitForTimeout(500);        // отложенная запись уровня
+
   await page.click('.panel:has-text("Пометки") summary');
   await page.click('.panel:has-text("Пометки") .panel-body > .btn');
   await page.waitForTimeout(120);
@@ -234,6 +238,21 @@ const step = async (page, name) => {
   });
   if (!imgOk) throw new Error('картинка в тексте не отрисовалась после загрузки');
   console.log('· картинка внутри текста снова показывается');
+
+  // громкость пережила стирание базы и перезагрузку: она хранится отдельно
+  // от материалов и к ним не привязана
+  await page.click('.panel:has-text("Музыка") summary');
+  await page.waitForSelector('.track audio');
+  const vol = await page.evaluate(() => document.querySelector('.track audio').volume);
+  if (Math.abs(vol - 0.35) > 0.02) throw new Error('громкость не пережила перезагрузку: ' + vol);
+  console.log('· громкость осталась прежней:', vol);
+
+  // мини-плеер поверх экранов берёт тот же уровень, а не полную громкость
+  await page.click('.track .btn-icon[title^="Слушать"]');
+  await page.waitForSelector('.player audio');
+  const playerVol = await page.evaluate(() => document.querySelector('.player audio').volume);
+  if (Math.abs(playerVol - 0.35) > 0.02) throw new Error('мини-плеер не взял общий уровень: ' + playerVol);
+  console.log('· мини-плеер взял тот же уровень:', playerVol);
   await step(page, '06-объект-после-загрузки');
 
   /* --- проверка на телефоне --------------------------------------------- */
