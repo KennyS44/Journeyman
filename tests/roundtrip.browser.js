@@ -86,6 +86,17 @@ const step = async (page, name) => {
   await page.goto(BASE);
   await page.waitForSelector('.menu-wrap');
 
+  // Чистый старт: круг должен зависеть только от того, что набьёт сам прогон.
+  // Флаг демо-сцены выставляется заранее — иначе она разложится на пустом
+  // хранилище и попадёт в сверку, а её наличие зависит от прошлых запусков.
+  await page.evaluate(() => new Promise((done) => {
+    try { localStorage.setItem('jm.demoSeeded', '1'); } catch (_) {}
+    const q = indexedDB.deleteDatabase('journeyman');
+    q.onsuccess = done; q.onerror = done; q.onblocked = done;
+  }));
+  await page.reload();
+  await page.waitForSelector('.menu-wrap');
+
   /* --- набиваем кодекс ------------------------------------------------- */
 
   console.log('· создаю пространство');
@@ -157,7 +168,7 @@ const step = async (page, name) => {
       }
       out.push({ name: s.name, description: s.description, links: links.length, nodes: ns.sort((a, b) => a.name.localeCompare(b.name)) });
     }
-    return out;
+    return out.sort((a, b) => (a.name + a.description).localeCompare(b.name + b.description));
   });
   console.log('· набрано:', JSON.stringify(before).length, 'символов описания');
 
@@ -214,7 +225,7 @@ const step = async (page, name) => {
       }
       out.push({ name: s.name, description: s.description, links: links.length, nodes: ns.sort((a, b) => a.name.localeCompare(b.name)) });
     }
-    return out;
+    return out.sort((a, b) => (a.name + a.description).localeCompare(b.name + b.description));
   });
 
   /* --- сверка ------------------------------------------------------------ */
