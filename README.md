@@ -36,6 +36,12 @@ Two caveats:
   picture and a name. A card can be dragged freely with the mouse or a finger —
   its position is saved. The canvas itself pans by dragging empty space, zooms
   with the wheel or a pinch, and "Show all" fits everything into view.
+- **Classes and the map** — every object can be given a class: country,
+  city, place, character, faction or note. The "Map" button picks one of ten
+  biomes (forest, jungle, desert, steppe, tundra, swamp, mountains,
+  archipelago, the underworld, the underdark), and a map is drawn beneath the
+  canvas from the objects: countries split the land with borders, cities get
+  walls, places get standing stones. Move a card and the map follows.
 - **The "Link" tool** — switched on from the bar at the bottom. Tapping two
   objects draws a thread between them. Tapping the thread itself offers to
   break it.
@@ -71,6 +77,7 @@ Two caveats:
     js/backup.js    saving the codex to a file and loading it back
     js/calc.js      parsing dice expressions, and the calculator itself
     js/app.js       the shell: routes, shared header, mini-player
+    js/map.js       object classes, biomes and drawing the map beneath the canvas
     js/demo.js      demo scene for the first run on empty storage
     js/screens/menu.js    screen #/ — the list of spaces
     js/screens/space.js   screen #/s/<id> — canvas, cards, links, zoom
